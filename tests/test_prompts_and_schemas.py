@@ -1,9 +1,17 @@
 """
-Tests for Pydantic schemas (Task 2a). Prompt tests added in Task 2b.
+Tests for Pydantic schemas (Task 2a) and prompts (Task 2b).
 """
 import pytest
 from pydantic import ValidationError
 
+from py_app.prompts import (
+    structured_data,
+    overview,
+    marketing,
+    sponsorships,
+    social_media,
+    strategic_focus,
+)
 from py_app.schemas.research import (
     SectionWithSources,
     SectionContent,
@@ -100,3 +108,58 @@ def test_section_with_sources_empty_sources_raises():
 def test_research_request_missing_company_name_raises():
     with pytest.raises(ValidationError):
         ResearchRequest(region_focus="Global")  # type: ignore[call-arg]
+
+
+# ---- Prompt modules (Task 2b) ----
+def test_structured_data_build_user_message_contains_company():
+    msg = structured_data.build_user_message("Apple", region_text="", focus_text="")
+    assert "Apple" in msg
+    assert "industry" in msg and "employees" in msg
+
+
+def test_overview_build_user_message_no_sources_block_instructions():
+    msg = overview.build_user_message("Acme", region_text="", focus_text="")
+    assert "Acme" in msg
+    assert "Sources:" not in msg
+
+
+def test_overview_build_user_message_has_region():
+    """Overview prompt uses company_name and region_text only (no focus_text, per original TSX)."""
+    msg = overview.build_user_message("Nike", region_text=" in Europe", focus_text="")
+    assert "Nike" in msg
+    assert " in Europe" in msg
+
+
+def test_marketing_build_user_message_contains_company():
+    msg = marketing.build_user_message("Tesla")
+    assert "Tesla" in msg
+
+
+def test_sponsorships_build_user_message_contains_company():
+    msg = sponsorships.build_user_message("Cisco")
+    assert "Cisco" in msg
+
+
+def test_social_media_build_user_message_contains_company():
+    msg = social_media.build_user_message("Spotify")
+    assert "Spotify" in msg
+
+
+def test_strategic_focus_build_user_message_contains_company():
+    msg = strategic_focus.build_user_message("Nike")
+    assert "Nike" in msg
+
+
+def test_all_prompt_versions_defined_and_non_empty():
+    modules = [
+        structured_data,
+        overview,
+        marketing,
+        sponsorships,
+        social_media,
+        strategic_focus,
+    ]
+    for mod in modules:
+        assert hasattr(mod, "PROMPT_VERSION"), f"{mod.__name__} missing PROMPT_VERSION"
+        assert isinstance(getattr(mod, "PROMPT_VERSION"), str), f"{mod.__name__}.PROMPT_VERSION must be str"
+        assert len(getattr(mod, "PROMPT_VERSION").strip()) > 0, f"{mod.__name__}.PROMPT_VERSION must be non-empty"
