@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:all": "concurrently \"next dev\" \"uvicorn py_app.main:app --reload --port 8000\"",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -50,6 +51,7 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+    "concurrently": "^9.1.2",
     "@eslint/eslintrc": "^3",
     "@playwright/test": "^1.56.1",
     "@tailwindcss/postcss": "^4",
