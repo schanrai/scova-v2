@@ -1,5 +1,6 @@
 node_modules/
 .next/
+.env
 .env.local
 .env.development.local
 .env.test.local
@@ -18,3 +19,19 @@ test-results/
 playwright-report/
 playwright/.cache/
 vitest-ui/
+TESTING.md
+supabase-auth-testing.md
+
+# Python files
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+
+# Plans and notes
+plans/
+notes/
