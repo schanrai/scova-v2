@@ -7,6 +7,7 @@ from py_app.services.llm_client import (
     get_detailed_analysis_with_citations,
     classify_openrouter_error,
 )
+from py_app.services.orchestration import run_research
 
 __all__ = [
     "get_llm_research",
@@ -14,4 +15,5 @@ __all__ = [
     "get_detailed_analysis",
     "get_detailed_analysis_with_citations",
     "classify_openrouter_error",
+    "run_research",
 ]
