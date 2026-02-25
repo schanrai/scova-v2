@@ -5,8 +5,8 @@ import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Send, Lightbulb, Star, Loader2, Network } from "lucide-react"
-import { getLLMResearch, getStructuredData, getDetailedAnalysis, getDetailedAnalysisWithCitations, getFormattedData } from "@/lib/llm-client"
-import { overviewSchema, marketingSchema, sponsorshipsSchema, socialMediaSchema } from "@/lib/schemas"
+import { startResearch } from "@/lib/llm-client"
+import { createClient } from "@/lib/supabase/client"
 import { validateCompanyName, validateRegionName, validateDivisionName, validateNumericChoice } from "@/lib/input-validator"
 
 interface CoPilotInterfaceProps {
@@ -144,255 +144,40 @@ export default function CoPilotInterface({
           let combinedResult: any = null;
           const runLLM = async () => {
             try {
-              // Build the region part of the prompt
-              const regionText = regionFocus === "specific" ? ` in ${specificRegion}` : "";
-              
-              // Build the focus part of the prompt
-              let focusText = "";
-              if (researchFocus === "comprehensive") {
-                focusText = "";
-              } else if (researchFocus === "specific") {
-                focusText = `, specifically their ${specificDivision} division`;
+              const supabase = createClient();
+              const { data: { session } } = await supabase.auth.getSession();
+              if (!session?.access_token) {
+                throw new Error("Please sign in to run research.");
               }
-              
-              // PASS 1: Basic company info (keep working as-is)
-              const structuredPrompt = `I would like to research the company ${companyName}${regionText}${focusText}. 
 
-IMPORTANT: You must respond with ONLY valid JSON. Do not include any other text, explanations, or formatting. Retrieve the information from high quality, verifiable information such as from the company website, press releases, reputable media coverage and high authority publishers
-
-Please provide the company data in this exact JSON format:
-
-{
-  "industry": "<value>",
-  "founded": "<value>",
-  "website": "<value>",
-  "headquarters": "<value>",
-  "annualRevenue": "<value with appropriate currency symbol for company's primary market>",
-  "employees": "<value>"
-}
-
-DO NOT add any explanations, dates, parentheses, or additional context to values.`;
-
-              // PASS 2: Company overview sections (shorter, focused searches)
-              const overviewPrompt = `Research ${companyName}${regionText} and provide:
-              
-1. Company Overview (100-150 words): Global footprint, core business divisions and brands, primary service lines, main offices
-2. Company Background (150-350 words): Brief history of the company, key milestones, organisational structure, defining values
-3. Financial Overview (100-200 words): Key financial performance with specific datapoints, stability indicators, ownership structure, funding and recent acquisitions
-4. Audience Segmentation (50-75 words): Target audiences, current customer types, emerging segments
-
-Focus on factual information from company press releases, financial reports, and reputable business sources.
-
-SOURCES REQUIREMENTS (STRICT):
-- For EACH section, provide a separate list of 2–8 source URLs that were actually used to write THAT section.
-- Include ONLY direct, verifiable URLs (no labels or titles). One URL per line.
-- Do NOT reuse links across sections unless the same source was genuinely used for both.
-- Do NOT include sources that weren't used for the section's content.
-- Prefer primary sources (company filings, newsroom, investor relations) and high-authority media.
-- Place the section's sources immediately after its content as:
-  "Sources:"
-  <URL 1>
-  <URL 2>
-  ....
-- Do not include any additional commentary around the URLs.
-
-Your answer will be reformatted later, so keep each section’s content followed immediately by its own "Sources:" block as specified above.`;
-
-              // PASS 3: Marketing Activity (restored detailed structure)
-              const marketingPrompt = `Research ${companyName}${regionText}${focusText} recent and current marketing activities.
-
-Provide a detailed narrative analysis of current and recent global marketing activity. Include at least 5 specific named campaigns. For each campaign, bold the campaign name (e.g., **Christmas Campaign 2024:**) followed by the campaign details. For each campaign describe (where possible) the campaign name, campaign date or period, target audiences, messaging themes, measurable outcomes, creative concepts, channels used, and partnerships or collaborations. Do not make up the details of the campaigns, only use the information you find even if it is not complete.
-
-Write this as flowing narrative text that naturally incorporates all the details about each campaign. Use bold formatting only for campaign names (e.g., **Christmas Campaign 2024:**). Never output ALL CAPS. Focus on high quality, verifiable information from the company website, press releases, reputable media coverage and high authority publishers. Avoid vague descriptions - all examples must reference verifiable sources, initiatives, or announcements.
-
-IMPORTANT: 
-- If you cannot find 5 specific campaigns within the last 3-5 years, extend your search beyond this timeframe to find the required 5 campaigns. Do not limit yourself to recent years if insufficient recent examples exist.
-- If a region or division was specified, include regional or division-specific marketing details with concrete examples of events, digital campaigns, or key channel activations, including timing, format, target audience, and strategic rationale.
-
-CRITICAL: 
--Include inline source links using markdown format [Link Text](URL) for all verifiable information.
--Do not start your response with generic time phrases like "over the past five years". Instead, use flexible language that reflects the actual timeframe of the content you found.`;
-
-              // PASS 4: Sponsorships & Experiential (dedicated search for depth)
-              const sponsorshipsPrompt = `Research ${companyName}${regionText}${focusText} recent and current sponsorship portfolio and experiential initiatives.
-
-Provide a detailed narrative analysis of at least 5 specific named sponsorships in sports, arts, culture, entertainment, or lifestyle. For each sponsorship, bold the sponsorship name (e.g., **McLaren Racing Partnership:**) followed by the details (if available) such as exact or approximate start/end dates, geographic location, event/partner name, activation channels, budget or scale indicators, strategic fit with brand goals, and measurable outcomes (audience reach, media coverage, ROI, engagement metrics). Do not make up the details of the sponsorships, only use the information you find even if it is not complete.
-
-For experiential initiatives, identify and describe at least 3 named initiatives such as VIP/client-only events, curated experiences, global tours, or museum tie-ins. For each initiative, bold the event name in the form **Event Name:** followed by the initiative details (if available) such as the dates and location, purpose/context, audience profile, unique experiential elements, cultural or thought leadership integration, and measurable impact. Do not make up the details of the initiatives, only use the information you find even if it is not complete.
-
-Write this as flowing narrative text. Use bold formatting only for sponsorship and experiential initiative names (e.g., **Cisco Live:**). Do not use any headings (no #, ##, or HTML <h1>–<h6>), lists, or title case; keep everything as normal paragraph text in sentence case. Never output ALL CAPS. Focus on verifiable information from the company website, press releases, high authority news sources and publishers. Avoid vague statements like 'supports local events'. All examples must reference named events, partners, or programs with verifiable details. 
-
-IMPORTANT: 
-- If you cannot find 5 specific sponsorships within the last 3-5 years, extend your search beyond this timeframe to find the required 5 sponsorships. Similarly, if you cannot find 3 experiential initiatives within the last 3-5 years, extend your search to find the required 3 initiatives. Do not limit yourself to recent years if insufficient recent examples exist.
-- If a region or division was specified, include regional or division-specific sponsorship details with concrete examples of events, partnerships, or initiatives, including timing, format, target audience, and strategic rationale.
-
-CRITICAL: 
--Include inline source links using markdown format [Link Text](URL) for all verifiable information.
--Do not start your response with generic time phrases like "over the past five years". Use flexible language that reflects the actual timeframe found.`;
-
-              // --- PASS 5A: Social Media ONLY (keep your last good social prompt here)
-              const socialMediaPrompt = `Research ${companyName}${regionText} social media presence
-              
-Social Media (250-350 words):
-
-CRITICAL: Your response MUST begin with this exact bullet list format. Do not skip this step and do not write anything before this list:
-
-- YouTube: [handle or link]
-- Instagram: [handle or link]
-- TikTok: [handle or link]
-- Facebook: [handle or link]
-- LinkedIn: [handle or link]
-- X/Twitter: [handle or link]
-
-ONLY include platforms where you can find the official/verified handle. If not found, omit that line entirely.
-
-After the bullet list, write a flowing narrative analysis focusing on the 2-3 MOST ACTIVE platforms (based on follower count). Describe their content style and tone, posting frequency, audience engagement, visual identity and brand voice, and strategic role in their overall social presence. Write this as continuous prose, not bullet points or subheadings.
-
-MANDATORY:
-- Do NOT include links to third-party blogs or websites
-- Do NOT include specific post URLs
-- Only link to official social media handles in the bullet list
--Focus on high-level, aggregate insights from the last 6-12 months only. 
--Do not make up the details of the platforms, only use the information you find even if it is not complete.`;
-
-
-              // --- PASS 5B: Strategic Focus ONLY (separate prompt with links required)
-              const strategicFocusPrompt = ` 
-Mode: show sources — every paragraph must contain at least one inline markdown citation [SourceName](URL).        
-              
-Research the strategic focus of ${companyName}${regionText}.
-
-Strategic Focus (175-250 words):
-- Explain core strategy and differentiation, brand traits and positioning, competitive stance, and 2–3 named growth/communication priorities.
-
-Each factual or strategic statement must include a markdown citation exactly like this:
-Apple emphasizes privacy and seamless integration [Reuters](https://www.reuters.com)
-
-Citation Rules (Hard Requirements):
-1. Every factual or strategic claim must end with an inline citation [SourceName](URL).
-2. No claim may appear without a citation. 
-3. Include a minimum of two distinct high-authority sources - more if multiple claims are made.
-4. If fewer than two valid sources are found, run another search before generating the summary.
-5. Before writing, search again if you cannot locate verifiable sources.
-
-Example pattern (follow exactly):  
- Nike invests in sustainability initiatives [Reuters](https://www.reuters.com) and expands direct-to-consumer channels [Company Press Release](https://news.nike.com). 
-
-Source Quality - Hard Constraints:
--Never use student essays, personal blogs, AI-generated summaries, content farms, or SEO spam.
--Use only the following for citations and factual grounding:
-1.The official ${companyName} website
-2.Verified press releases from ${companyName} or recognized newswires
-3.Major business and news outlets (e.g., bloomberg.com, reuters.com, wsj.com, ft.com, cnbc.com, apnews.com)
-4.Trade or industry publications with editorial oversight (e.g., adweek.com, campaignlive.com, techcrunch.com)
-
-Domain Exclusions:
-Do not use or cite any source whose domain includes:
-scribd, panmore, accelingo, latterly, blogspot, medium.com (unless the official ${companyName} account), wordpress, quora, fandom, slideshare, essay, ai-summary, contentfarm.
-
-If retrieved results include any of these excluded domains, discard them and repeat the search until at least two valid, high-authority sources are found.
-
-Output Format:
-- Output only the Strategic Focus section.
-- Each factual or strategic sentence must end with an inline citation
-
-Self-Check Before Finalizing:
-If any sentence lacks a [SourceName](URL) citation, regenerate that sentence with one.
-The final output must contain at least two distinct citations.
-
-Example output:
-Nike emphasizes digital transformation to deepen consumer relationships [Reuters](https://www.reuters.com).  
-The company invests in sustainable materials and circular-design innovation [Nike Press Release](https://news.nike.com). 
-`;
-
-              // Execute all searches in parallel for better performance
-              console.log('🚀 Starting multi-pass research...');
-              
-              const [
-                structuredOutput,
-                overviewOutput,
-                marketingOutput,
-                sponsorshipsOutput,
-                socialMediaText,          // NEW
-                strategicFocusText        // NEW
-              ] = await Promise.all([
-                getStructuredData(structuredPrompt),
-                getDetailedAnalysis(overviewPrompt), // Light search - just company info
-                getDetailedAnalysisWithCitations(marketingPrompt), // Heavy search - needs campaign URLs
-                getDetailedAnalysisWithCitations(sponsorshipsPrompt), // Heavy search - needs sponsorship URLs
-                getDetailedAnalysisWithCitations(socialMediaPrompt),    // Social links OK here
-                getDetailedAnalysisWithCitations(strategicFocusPrompt) // Citations allowed here
-              ]);
-
-              // Combine the two sections for the existing formatter/schema
-              const socialMediaOutput = `${socialMediaText}\n\n${strategicFocusText}`;
-
-              console.log('✅ All search passes completed');
-
-              // DEBUG: Log raw search outputs to see what each section returns
-              console.log('🔍 DEBUG: Raw search outputs:');
-              console.log('📋 Structured Output:', structuredOutput);
-              console.log('📚 Overview Output:', overviewOutput);
-              console.log('📈 Marketing Output:', marketingOutput);
-              console.log('🎯 Sponsorships Output:', sponsorshipsOutput);
-              console.log('📱 Social Media Output:', socialMediaText);
-              console.log('📈 Strategic Focus Output:', strategicFocusText);
-
-              // The formatting calls
-              const [
-                formattedOverview,
-                formattedMarketing,
-                formattedSponsorships,
-                formattedSocialMedia
-              ] = await Promise.all([
-                getFormattedData(overviewOutput, overviewSchema),        
-                getFormattedData(marketingOutput, marketingSchema),     
-                getFormattedData(sponsorshipsOutput, sponsorshipsSchema), 
-                getFormattedData(socialMediaOutput, socialMediaSchema) // now contains both sections
-              ]);
-
-              console.log('✅ All formatting passes completed');
-              console.log('🔍 DEBUG: After formatting - what we got back:');
-              console.log('�� Overview formatted:', formattedOverview);
-              console.log('📈 Marketing formatted:', formattedMarketing);
-              console.log('🎯 Sponsorships formatted:', formattedSponsorships);
-              console.log('📱 Social Media formatted:', formattedSocialMedia);
-
-              // Create the combined result
-              combinedResult = {
-                structuredData: structuredOutput,
-                detailedAnalysis: {
-                  companyOverview: formattedOverview.companyOverview,
-                  companyBackground: formattedOverview.companyBackground,
-                  financialOverview: formattedOverview.financialOverview,
-                  audienceSegmentation: formattedOverview.audienceSegmentation,
-                  marketingActivity: formattedMarketing.marketingActivity,
-                  sponsorshipsExperiential: formattedSponsorships.sponsorshipsExperiential,
-                  socialMediaPresence: formattedSocialMedia.socialMediaPresence,
-                  strategicFocus: formattedSocialMedia.strategicFocus
+              const result = await startResearch(
+                {
+                  companyName,
+                  regionFocus,
+                  specificRegion,
+                  divisionFocus: researchFocus,
+                  specificDivision,
                 },
+                session.access_token
+              );
+
+              // Map API response (snake_case) to shape expected by rest of app (camelCase)
+              combinedResult = {
+                structuredData: result.structured_data,
+                detailedAnalysis: result.detailed_analysis,
                 metadata: {
+                  ...result.metadata,
                   companyName,
                   regionFocus,
                   specificRegion,
                   researchFocus,
                   specificDivision,
                   timestamp: new Date().toISOString(),
-                  searchPasses: 5,
-                  formattingPasses: 4
-                }
+                },
               };
-
-              // After creating combinedResult, add this debug log:
-              console.log('🔍 DEBUG: combinedResult structure:');
-              console.log('�� Marketing Activity:', combinedResult.detailedAnalysis.marketingActivity);
-              console.log('🎯 Sponsorships:', combinedResult.detailedAnalysis.sponsorshipsExperiential);
-              console.log('📋 Full combinedResult:', JSON.stringify(combinedResult, null, 2));
-              
 
               setLlmResult(JSON.stringify(combinedResult, null, 2));
               setStructuredData(combinedResult);
-              
             } catch (e) {
               console.error('Research failed:', e);
               const errorMessage = (e as Error).message;
@@ -430,7 +215,7 @@ The company invests in sustainable materials and circular-design innovation [Nik
 
       return () => clearInterval(interval)
     }
-  }, [isProcessing, companyName, onResponse, currentStage, onFeedbackComplete, setLlmResult, llmResult, researchFocus, specificDivision, regionFocus, specificRegion])
+  }, [isProcessing, companyName, onResponse, currentStage, onFeedbackComplete, researchFocus, specificDivision, regionFocus, specificRegion])
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {

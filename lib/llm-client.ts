@@ -1,172 +1,92 @@
-// ADD: Simple JSON cleaning function (move to TOP of file)
-function cleanJsonResponse(responseText: string): string {
-  let jsonString = responseText;
-  
-  // Remove markdown code blocks if present
-  if (jsonString.includes('```json')) {
-    jsonString = jsonString.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-  } else if (jsonString.includes('```')) {
-    jsonString = jsonString.replace(/```\n?/g, '');
-  }
-  
-  // Remove extra quotes around the whole response
-  jsonString = jsonString.replace(/^"|"$/g, '');
-  
-  return jsonString.trim();
+/**
+ * Single entry point for company research. POSTs to Python backend /api/research.
+ * Replaces the previous 5 LLM client functions and formatting agent (Task 3).
+ */
+
+// ---- Request params (map to Python ResearchRequest) ----
+export interface ResearchRequestParams {
+  companyName: string
+  regionFocus: string
+  specificRegion?: string
+  divisionFocus?: string
+  specificDivision?: string
 }
 
-export async function getLLMResearch(prompt: string, model: string) {
-    console.log("Getting LLM research for prompt: ", prompt, " with model: ", model);
-  const response = await fetch('/api/llm', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt, model }),
-  });
-  const data = await response.json();
-  //console.log("LLM research data: ", data);
-  if (!response.ok) throw new Error(data.error || 'LLM error');
-  return data.result;
+// ---- Response types (mirror Python Pydantic ResearchResponse) ----
+export interface StructuredData {
+  industry: string
+  founded: string
+  website: string
+  headquarters: string
+  annualRevenue: string
+  employees: string
 }
 
-// RESTORE: The working getStructuredData function
-export async function getStructuredData(prompt: string) {
-  console.log("Getting structured data with strict parameters");
-  const response = await fetch('/api/llm', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-      prompt, 
-      model: "openai/gpt-4o-mini-search-preview",
-      temperature: 0.0,
-      top_p: 0.0,
-      max_tokens: 300,
-      skipValidation: true // Skip validation for LLM-generated content
-    }),
-  });
-  const data = await response.json();
-  //console.log("Structured data result: ", data);
-  if (!response.ok) throw new Error(data.error || 'LLM error');
-  
-  // FIX: Clean the response before parsing
-  try {
-    const cleanedResponse = cleanJsonResponse(data.result);
-    //console.log("Cleaned response:", cleanedResponse);
-    return JSON.parse(cleanedResponse);
-  } catch (e) {
-    console.error("Failed to parse structured data as JSON:", e);
-    console.error("Raw response:", data.result);
-    throw new Error("Failed to parse structured data response");
-  }
+export interface SectionWithSources {
+  content: string
+  sources: string[]
 }
 
-// ADD: New function for detailed analysis (search agent - no JSON constraints)
-export async function getDetailedAnalysis(prompt: string) {
-  console.log("Getting detailed analysis from search agent");
-  try {
-    const response = await fetch('/api/llm', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        prompt, 
-        model: "openai/gpt-4o-search-preview", // ADD :online suffix
-        temperature: 0.3,
-        top_p: 0.9,
-        max_tokens: 4000,
-        skipValidation: true // Skip validation for LLM-generated content
-      }),
-    });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-      console.error("API Error:", data);
-      throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
-    }
-    
-    return data.result; // Return raw text, not parsed JSON
-  } catch (e) {
-    console.error("Detailed analysis failed:", e);
-    const errorMessage = e instanceof Error ? e.message : String(e);
-    throw new Error(`LLM request failed: ${errorMessage}`);
-  }
+export interface SectionContent {
+  content: string
 }
 
-// ADD: New function for citation-heavy analysis (more search results)
-export async function getDetailedAnalysisWithCitations(prompt: string) {
-  console.log("Getting detailed analysis with enhanced citation search");
-  try {
-    const response = await fetch('/api/llm', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        prompt, 
-        model: "openai/gpt-4o-search-preview",
-        temperature: 0.3,
-        top_p: 0.9,
-        max_tokens: 4000,
-        plugins: [{
-          id: "web",
-          engine: "exa",
-          max_results: 7
-        }],
-        skipValidation: true // Skip validation for LLM-generated content
-      }),
-    });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-      console.error("API Error:", data);
-      throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
-    }
-    
-    return data.result; // Return raw text, not parsed JSON
-  } catch (e) {
-    console.error("Detailed analysis with citations failed:", e);
-    const errorMessage = e instanceof Error ? e.message : String(e);
-    throw new Error(`LLM request failed: ${errorMessage}`);
-  }
+export interface SocialMediaSection {
+  handles: string
+  content: string
 }
 
-// ADD: New function for formatting (formatting agent - strict JSON schema)
-export async function getFormattedData(content: string, schema: any) {
-  console.log("Formatting content with formatting agent");
-  const response = await fetch('/api/llm', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-      prompt: `Convert the following research into structured JSON format according to the schema. If input has structured data, convert to readable narrative text that maintains all the key information but maintains a maximum word count of 1200-1500 words. 
+export interface DetailedAnalysis {
+  companyOverview: SectionWithSources
+  companyBackground: SectionWithSources
+  financialOverview: SectionWithSources
+  audienceSegmentation: SectionWithSources
+  marketingActivity: SectionContent
+  sponsorshipsExperiential: SectionContent
+  socialMediaPresence: SocialMediaSection
+  strategicFocus: SectionContent
+}
 
-IMPORTANT: If there are paragraphs, line breaks or other formatting, preserve it as long as the result is readable and follows the schema requirements.  Preserve all markdown links in the format [Link Text](URL) - do not convert them to plain text.
+export interface ResearchResponse {
+  structured_data: StructuredData
+  detailed_analysis: DetailedAnalysis
+  metadata: Record<string, unknown>
+}
 
-CRITICAL MAPPING RULES:
-- For social media: If the input begins with a bullet list of official/verified social handles, copy that bullet list VERBATIM into socialMediaPresence.handles (do not alter order or content), and put the subsequent narrative into socialMediaPresence.content. Do not drop, merge, or rewrite the bullet list. Do not add any text before it.
-- For other sections, map narrative into the corresponding content field(s).
-
-RESEARCH CONTENT:
-${content}
-
-Format as clean, readable narrative text that follows the schema requirements, keeping all markdown links intact.`,
-      model: "openai/gpt-4o-mini",
-      temperature: 0.0,
-      top_p: 0.1,
-      max_tokens: 15000,
-      response_format: schema,
-      skipValidation: true // Skip validation for LLM-generated content
-    }),
-  });
-  const data = await response.json();
-  //console.log("Formatted data result: ", data);
-  if (!response.ok) throw new Error(data.error || 'LLM error');
-  
-  try {
-    // ADD: Clean the response before parsing (same as getStructuredData)
-    const cleanedResponse = cleanJsonResponse(data.result);
-    //console.log("Cleaned response before parsing:", cleanedResponse);
-    return JSON.parse(cleanedResponse);
-  } catch (e) {
-    console.error("Failed to parse formatted data as JSON:", e);
-    console.error("Raw response that failed:", data.result);
-    throw new Error("Failed to parse formatted data response");
+/**
+ * Run full research flow via Python backend (6 LLM calls, Pydantic validation).
+ * Requires a valid Supabase JWT for /api/research.
+ */
+export async function startResearch(
+  params: ResearchRequestParams,
+  accessToken: string
+): Promise<ResearchResponse> {
+  const body = {
+    company_name: params.companyName,
+    region_focus: params.regionFocus,
+    specific_region: params.specificRegion ?? "",
+    division_focus: params.divisionFocus ?? "",
+    specific_division: params.specificDivision ?? "",
   }
-} 
+
+  const response = await fetch("/api/research", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(body),
+  })
+
+  const data = await response.json()
+
+  if (!response.ok) {
+    const message =
+      typeof data.detail === "string"
+        ? data.detail
+        : data.error ?? data.message ?? `HTTP ${response.status}`
+    throw new Error(message)
+  }
+
+  return data as ResearchResponse
+}
