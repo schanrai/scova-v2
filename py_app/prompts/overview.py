@@ -2,7 +2,7 @@
 Company overview (four sections with sources). Output parsed into OverviewSchema.
 Structure: SYSTEM_PROMPT = role + output rules (+ hard constraints); build_user_message = task + dynamic inputs.
 """
-PROMPT_VERSION = "v1.0.0"
+PROMPT_VERSION = "v1.1.0"
 
 SYSTEM_PROMPT = """You are a research assistant. Focus on factual information from company press releases, financial reports, and reputable business sources. For each section, use only the sources you cite; prefer primary sources and high-authority media."""
 
@@ -19,4 +19,7 @@ def build_user_message(
 3. Financial Overview (100-200 words): Key financial performance with specific datapoints, stability indicators, ownership structure, funding and recent acquisitions.
 4. Audience Segmentation (50-75 words): Target audiences, current customer types, emerging segments.
 
-For each section, after the section content list 2–8 source URLs that were actually used to write that section. One URL per line. Do not reuse URLs across sections unless the same source was genuinely used for both. Include only direct, verifiable URLs."""
+SOURCES (required for each section):
+- For EACH section, immediately after that section's content, add a line "Sources:" then list 2–8 source URLs that were actually used to write that section, one URL per line.
+- Include only direct, verifiable URLs (no labels or titles). Do not reuse URLs across sections unless the same source was genuinely used for both.
+- Do not add any commentary around the URLs. Your answer will be parsed by section; the "Sources:" block format is required."""

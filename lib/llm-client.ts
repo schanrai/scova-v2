@@ -78,15 +78,25 @@ export async function startResearch(
     body: JSON.stringify(body),
   })
 
-  const data = await response.json()
+  const text = await response.text()
 
   if (!response.ok) {
-    const message =
-      typeof data.detail === "string"
-        ? data.detail
-        : data.error ?? data.message ?? `HTTP ${response.status}`
+    let message = `Request failed (${response.status})`
+    try {
+      const data = text ? JSON.parse(text) : {}
+      message =
+        typeof data.detail === "string"
+          ? data.detail
+          : data.error ?? data.message ?? message
+    } catch {
+      if (text && text.length < 200) message = text
+    }
     throw new Error(message)
   }
 
-  return data as ResearchResponse
+  try {
+    return JSON.parse(text) as ResearchResponse
+  } catch {
+    throw new Error("Invalid response from research API")
+  }
 }

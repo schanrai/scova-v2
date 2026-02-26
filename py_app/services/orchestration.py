@@ -68,11 +68,49 @@ def _strip_json_fences(raw: str) -> str:
     return s.strip()
 
 
+def _extract_sources_block(block: str) -> tuple[str, list[str]]:
+    """
+    Split a section block into content (before "Sources:") and list of URLs (after "Sources:", one per line).
+    Falls back to url_pattern findall if no "Sources:" line is found. Returns (content, urls).
+    """
+    url_pattern = re.compile(r"https?://[^\s\]\)]+")
+    block = block.strip()
+    # Look for "Sources:" (case-insensitive) on its own or at start of line
+    sources_match = re.search(r"\n\s*Sources:\s*\n", block, re.IGNORECASE)
+    if sources_match:
+        content_part = block[: sources_match.start()].strip()
+        urls_part = block[sources_match.end() :].strip()
+        # Take lines that look like URLs (http/https) or extract URLs from lines
+        urls = []
+        for line in urls_part.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            # If whole line is a URL, use it
+            if re.match(r"^https?://", line):
+                urls.append(line)
+            else:
+                # Maybe URL is embedded (e.g. after a dash); extract
+                found = url_pattern.findall(line)
+                urls.extend(found)
+        content = re.sub(r"\n{2,}", "\n\n", content_part).strip()
+        if urls:
+            return content or "(no content)", urls
+        # No URLs after Sources: — fall through to regex on whole block
+    # Fallback: extract all URLs from block; content is block with URLs removed
+    urls = url_pattern.findall(block)
+    if urls:
+        content = url_pattern.sub("", block).strip()
+        content = re.sub(r"\n{2,}", "\n\n", content).strip()
+        return content or "(no content)", urls
+    return block[:500].strip() or "(no content)", []
+
+
 def _parse_overview_text(text: str) -> dict[str, Any]:
     """
-    Parse overview LLM output (four sections with optional source URLs) into dict for OverviewSchema.
+    Parse overview LLM output (four sections with Sources: block) into dict for OverviewSchema.
     Sections are expected to start with "1. Company Overview", "2. Company Background", etc.
-    URLs (http/https) are collected as sources; remaining text is content.
+    Each section may end with "Sources:" followed by one URL per line; _extract_sources_block handles parsing.
     """
     section_headers = [
         ("1. Company Overview", "companyOverview"),
@@ -80,7 +118,6 @@ def _parse_overview_text(text: str) -> dict[str, Any]:
         ("3. Financial Overview", "financialOverview"),
         ("4. Audience Segmentation", "audienceSegmentation"),
     ]
-    url_pattern = re.compile(r"https?://[^\s\]\)]+")
     result: dict[str, Any] = {}
 
     for i, (header, key) in enumerate(section_headers):
@@ -90,13 +127,7 @@ def _parse_overview_text(text: str) -> dict[str, Any]:
             continue
         end = text.find(section_headers[i + 1][0], start + len(header)) if i + 1 < len(section_headers) else len(text)
         block = text[start + len(header) : end].strip()
-        content = block
-        urls = url_pattern.findall(block)
-        if urls:
-            content = url_pattern.sub("", block).strip()
-            content = re.sub(r"\n{2,}", "\n\n", content).strip()
-        if not content:
-            content = block[:500].strip() or "(no content)"
+        content, urls = _extract_sources_block(block)
         if not urls:
             urls = [_PLACEHOLDER_SOURCE]
         result[key] = {"content": content, "sources": urls}
