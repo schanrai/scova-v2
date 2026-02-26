@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Curl POST /api/research with Bearer token extracted from Supabase auth cookie (.0).
+# Run with: bash scripts/curl_research_with_token.sh
+# Ensure Python backend is running in another terminal: uvicorn py_app.main:app --reload --port 8000
+# This request can take 30–90 seconds (6 LLM calls).
+
+TOKEN='eyJhbGciOiJFUzI1NiIsImtpZCI6Ijc3YjY4NDA0LTExNDEtNGMxMy04YWJlLWQ4NGQ1NzcwYjQ4MSIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL21xYWNhb2hocGlvb3V5dmRsdnl1LnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiI2ODIyMTYzYS0yNzNiLTRiYjItOGI1Yy1hYTdjZmI2ZDQ3ZDQiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzcyMTQ2NDI2LCJpYXQiOjE3NzIxNDI4MjYsImVtYWlsIjoiZWNvbS5hbmFseXN0QGdtYWlsLmNvbSIsInBob25lIjoiIiwiYXBwX21ldGFkYXRhIjp7InByb3ZpZGVyIjoiZ29vZ2xlIiwicHJvdmlkZXJzIjpbImdvb2dsZSJdfSwidXNlcl9tZXRhZGF0YSI6eyJhdmF0YXJfdXJsIjoiaHR0cHM6Ly9saDMuZ29vZ2xldXNlcmNvbnRlbnQuY29tL2EvQUNnOG9jS0ZMVWtuRXN2Vk1vUzA1LUxBUWRWMFRBRE41dmt5QnVVQTY3dVBTSC0xZEpmRVRBPXM5Ni1jIiwiZW1haWwiOiJlY29tLmFuYWx5c3RAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsImZ1bGxfbmFtZSI6IlN1c2hpIENoYW5yYWkiLCJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJuYW1lIjoiU3VzaGkgQ2hhbnJhaSIsInBob25lX3ZlcmlmaWVkIjpmYWxzZSwicGljdHVyZSI6Imh0dHBzOi8vbGgzLmdvb2dsZXVzZXJjb250ZW50LmNvbS9hL0FDZzhvY0tGTFVrbkVzdlZNb1MwNS1MQVFkVjBUQURONXZreUJ1VUE2N3VQU0gtMWRKZkVUQT1zOTYtYyIsInByb3ZpZGVyX2lkIjoiMTAzODU4OTgzMzI4Njg5ODAwNTQ1Iiwic3ViIjoiMTAzODU4OTgzMzI4Njg5ODAwNTQ1In0sInJvbGUiOiJhdXRoZW50aWNhdGVkIiwiYWFsIjoiYWFsMSIsImFtciI6W3sibWV0aG9kIjoib2F1dGgiLCJ0aW1lc3RhbXAiOjE3NjQ2MjE3MDR9XSwic2Vzc2lvbl9pZCI6IjRmZmNmNTY0LTcwZDMtNDY5My04ZDY4LThmMzNjMDk5NWQ1NiIsImlzX2Fub255bW91cyI6ZmFsc2V9.Vzw0GQI6i0Its4aLSlM5UkGio-uZC2ZCpomV8B9ITdryhg-N2riAykoTCX5hbE24-nQO47n4uLd3l8v6oltdtA'
+
+echo "Sending POST /api/research (may take 30–90 s)..."
+curl -s -w "\n\nHTTP status: %{http_code}\nTime: %{time_total}s\n" --max-time 120 \
+  -X POST http://localhost:8000/api/research \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"company_name": "Apple", "region_focus": "Global"}'
+echo "Done."

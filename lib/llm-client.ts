@@ -69,7 +69,11 @@ export async function startResearch(
     specific_division: params.specificDivision ?? "",
   }
 
-  const response = await fetch("/api/research", {
+  // In dev, call Python backend directly to avoid Next.js proxy timeout (ECONNRESET). Set NEXT_PUBLIC_API_URL=http://localhost:8000 in .env.local
+  const base = process.env.NEXT_PUBLIC_API_URL ?? ""
+  const url = `${base}/api/research`
+
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

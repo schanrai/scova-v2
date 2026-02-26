@@ -11,6 +11,8 @@ from typing import Any
 
 import httpx
 
+from pydantic import ValidationError as PydanticValidationError
+
 from py_app.config import Settings
 from py_app.schemas.research import (
     OverviewSchema,
@@ -204,46 +206,53 @@ async def run_research(request: ResearchRequest, settings: Settings) -> Research
         strategic_output,
     ) = results
 
-    # Structured data: JSON string -> dict -> Pydantic
+    logger.info("run_research: all 6 LLM calls done, building response")
+
     try:
-        raw = _strip_json_fences(structured_output)
-        structured_dict = json.loads(raw)
-        structured_data_validated = StructuredDataSchema.model_validate(structured_dict)
-    except (json.JSONDecodeError, ValueError) as e:
-        logger.warning("Structured data parse failed: %s", e)
-        raise ValueError("Failed to parse structured data response") from e
+        # Structured data: JSON string -> dict -> Pydantic
+        try:
+            raw = _strip_json_fences(structured_output)
+            structured_dict = json.loads(raw)
+            structured_data_validated = StructuredDataSchema.model_validate(structured_dict)
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning("Structured data parse failed: %s", e)
+            raise ValueError("Failed to parse structured data response") from e
 
-    # Overview: text -> parsed dict -> Pydantic
-    overview_dict = _parse_overview_text(overview_output)
-    overview_validated = OverviewSchema.model_validate(overview_dict)
+        # Overview: text -> parsed dict -> Pydantic
+        overview_dict = _parse_overview_text(overview_output)
+        overview_validated = OverviewSchema.model_validate(overview_dict)
 
-    # Marketing, sponsorships: raw text -> SectionContent
-    marketing_validated = MarketingSchema(
-        marketingActivity=SectionContent(content=marketing_output or "(no content)")
-    )
-    sponsorships_validated = SponsorshipsSchema(
-        sponsorshipsExperiential=SectionContent(content=sponsorships_output or "(no content)")
-    )
+        # Marketing, sponsorships: raw text -> SectionContent
+        marketing_validated = MarketingSchema(
+            marketingActivity=SectionContent(content=marketing_output or "(no content)")
+        )
+        sponsorships_validated = SponsorshipsSchema(
+            sponsorshipsExperiential=SectionContent(content=sponsorships_output or "(no content)")
+        )
 
-    # Social + strategic: split handles/content, then SocialMediaSchema
-    handles, social_content = _parse_social_handles_and_content(social_output)
-    social_validated = SocialMediaSchema(
-        socialMediaPresence=SocialMediaSection(
-            handles=handles or "(no handles)",
-            content=social_content or "(no content)",
-        ),
-        strategicFocus=SectionContent(content=strategic_output or "(no content)"),
-    )
+        # Social + strategic: split handles/content, then SocialMediaSchema
+        handles, social_content = _parse_social_handles_and_content(social_output)
+        social_validated = SocialMediaSchema(
+            socialMediaPresence=SocialMediaSection(
+                handles=handles or "(no handles)",
+                content=social_content or "(no content)",
+            ),
+            strategicFocus=SectionContent(content=strategic_output or "(no content)"),
+        )
 
-    detailed_analysis = {
-        **overview_validated.model_dump(),
-        **marketing_validated.model_dump(),
-        **sponsorships_validated.model_dump(),
-        **social_validated.model_dump(),
-    }
+        detailed_analysis = {
+            **overview_validated.model_dump(),
+            **marketing_validated.model_dump(),
+            **sponsorships_validated.model_dump(),
+            **social_validated.model_dump(),
+        }
 
-    return ResearchResponse(
-        structured_data=structured_data_validated,
-        detailed_analysis=detailed_analysis,
-        metadata={"prompt_versions": collect_prompt_versions()},
-    )
+        logger.info("run_research: returning ResearchResponse")
+        return ResearchResponse(
+            structured_data=structured_data_validated,
+            detailed_analysis=detailed_analysis,
+            metadata={"prompt_versions": collect_prompt_versions()},
+        )
+    except PydanticValidationError as e:
+        logger.exception("run_research: Pydantic validation failed: %s", e.errors())
+        raise

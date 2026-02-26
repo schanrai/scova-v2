@@ -36,6 +36,19 @@ def test_post_research_requires_auth(client_no_auth, respx_mock):
     assert r.status_code == 401
 
 
+def test_post_research_rejects_unsafe_input(client):
+    """POST /api/research with injection in company_name returns 400 (input validation)."""
+    r = client.post(
+        "/api/research",
+        json={
+            "company_name": "Company'; DROP TABLE users--",
+            "region_focus": "Global",
+        },
+    )
+    assert r.status_code == 400
+    assert "Invalid" in (r.json().get("detail") or "")
+
+
 @pytest.mark.respx
 def test_post_research_success(client, respx_mock):
     """POST /api/research with JWT override and mocked LLM returns 200 and full response."""

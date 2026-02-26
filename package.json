@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "dev:all": "concurrently \"next dev\" \"uvicorn py_app.main:app --reload --port 8000\"",
+    "dev:all": "concurrently -n next,py -c blue,green \"next dev\" \".venv/bin/uvicorn py_app.main:app --reload --port 8000\"",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

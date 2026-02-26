@@ -1,0 +1,43 @@
+"""Input validation for research API. Port of lib/input-validator.ts."""
+
+from py_app.validators.input_validator import (
+    ValidationResult,
+    detect_sql_injection,
+    detect_xss,
+    detect_template_injection,
+    detect_prompt_injection,
+    detect_json_injection,
+    detect_repeated_characters,
+    detect_gibberish,
+    detect_invalid_length,
+    is_input_safe,
+    validate_company_name,
+    validate_region_name,
+    validate_division_name,
+    validate_prompt,
+    validate_numeric_choice,
+    validate_research_request,
+    sanitize_input,
+    normalize_whitespace,
+)
+
+__all__ = [
+    "ValidationResult",
+    "detect_sql_injection",
+    "detect_xss",
+    "detect_template_injection",
+    "detect_prompt_injection",
+    "detect_json_injection",
+    "detect_repeated_characters",
+    "detect_gibberish",
+    "detect_invalid_length",
+    "is_input_safe",
+    "validate_company_name",
+    "validate_region_name",
+    "validate_division_name",
+    "validate_prompt",
+    "validate_numeric_choice",
+    "validate_research_request",
+    "sanitize_input",
+    "normalize_whitespace",
+]

@@ -8,6 +8,7 @@ import { Send, Lightbulb, Star, Loader2, Network } from "lucide-react"
 import { startResearch } from "@/lib/llm-client"
 import { createClient } from "@/lib/supabase/client"
 import { validateCompanyName, validateRegionName, validateDivisionName, validateNumericChoice } from "@/lib/input-validator"
+import { useAuth } from "@/components/auth-provider"
 
 interface CoPilotInterfaceProps {
   stage: "initial" | "region" | "region-specific" | "division" | "division-specific" | "confirmation" | "results" | "feedback" | "feedback-clarification" | "processing" | "processing-feedback"
@@ -22,6 +23,7 @@ export default function CoPilotInterface({
   feedbackMode = false,
   onFeedbackComplete,
 }: CoPilotInterfaceProps) {
+  const { loading: authLoading } = useAuth()
   const [userInput, setUserInput] = useState("")
   const [validationError, setValidationError] = useState("")
   const [conversationHistory, setConversationHistory] = useState([
@@ -268,6 +270,9 @@ export default function CoPilotInterface({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!userInput.trim()) return
+
+    // Cold start: avoid processing first Enter before auth is ready (prevents "goes into the ether")
+    if (authLoading) return
 
     // Validate input based on current stage
     const trimmedInput = userInput.trim();
@@ -620,11 +625,14 @@ Please choose one of the options below.`
               <form onSubmit={handleSubmit} className="flex gap-4">
                 {(() => {
                   const hasButtonOptions = currentStage === "region" || currentStage === "division"
+                  const inputDisabled = hasButtonOptions || authLoading
                   return (
                     <textarea
-                      disabled={hasButtonOptions}
+                      disabled={inputDisabled}
                       placeholder={
-                        hasButtonOptions
+                        authLoading
+                          ? "Preparing..."
+                          : hasButtonOptions
                           ? "Please select an option above"
                           : currentStage === "feedback" || currentStage === "feedback-clarification"
                           ? "Try: 'Focus more on their recent partnerships' or 'Include more financial data' or 'Add information about their sustainability initiatives' or 'Expand on their target audience demographics'"
@@ -647,7 +655,7 @@ Please choose one of the options below.`
                     />
                   )
                 })()}
-                <Button type="submit" size="icon" className="bg-black text-white hover:bg-gray-800">
+                <Button type="submit" size="icon" className="bg-black text-white hover:bg-gray-800" disabled={authLoading}>
                   <Send className="h-4 w-4" />
                   <span className="sr-only">Send</span>
                 </Button>
